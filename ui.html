@@ -1,0 +1,459 @@
+<html>
+    <head>
+        <meta http-equiv="content-type" content="text/html; charset=utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+
+        <title>FileHub</title>
+
+        <style>
+            body, div, span, ul, li, form, input, label, a { margin: 0px; padding: 0px; }
+            .hidden { display: none; }
+            .main-container { min-width: 300px; max-width: 960px; margin: 0px auto; }
+            .upload-ui { margin: 0px 10px; }
+            .progress-list {
+                margin-top: 10px;
+                padding: 5px 0px;
+                background-color: #fafafa;
+                border-radius: 5px;
+            }
+            .progress-container { position: relative; }
+            .progress-bar {
+                z-index: 11;
+                position: absolute;
+                width: 0px;
+                height: 44px;
+                background-color: #ccf;
+                opacity: 0.5;
+                border-bottom: 1px solid #ccc;
+                border-right: 1px solid #ccc;
+            }
+            .progress-file-name {
+                z-index: 12;
+                position: relative;
+                width: auto;
+                height: 14px;
+                padding: 2px 10px;
+                font-size: 12px;
+                color: #777;
+            }
+            .progress-message {
+                z-index: 13;
+                position: relative;
+                width: auto;
+                height: 18px;
+                padding: 4px 10px;
+                text-align: center;
+                font-size: 16px;
+                color: #87d;
+            }
+            .transfer-op-bar {
+                display: none;
+                position: absolute;
+                z-index: 14;
+                top: 2px;
+                right: 0px;
+            }
+            .transfer-op-btn {
+                padding: 0px 4px;
+                font-size: 12px;
+                font-family: sans-serif;
+                font-weight: bold;
+                cursor: pointer;
+                opacity: 0.5;
+            }
+            .transfer-op-btn:hover { opacity: 1.0; }
+            .transfer-op-btn:active { opacity: 0.5; }
+            .transfer-op-close { color: #f99; }
+            .file-list {
+                cursor: pointer;
+                background-color: #fafafa;
+                list-style-type: none;
+                padding: 5px 0px;
+                margin-top: 10px;
+                border-radius: 5px;
+                color: #777;
+            }
+            .file-list li { padding: 2px 10px; }
+            .list-item { background: none; }
+            .list-item:nth-child(2n+1) { background-color: #fff; }
+            .button {
+                cursor: pointer;
+                background-color: #f4f7ff;
+                color: #777;
+                text-align: center;
+                padding: 20px 0px;
+                margin: 10px auto 0px auto;
+                border-radius: 5px;
+                box-shadow: 0px 1px 1px #aaa;
+                font-size: 20px;
+                font-family: sans-serif;
+            }
+            .button:hover { box-shadow: 0px 2px 2px #aaa; }
+            .button:active { box-shadow: 0px 1px 1px #aaa; }
+            .drop-zone {
+                display: none;
+                position: fixed;
+                height: 100%;
+                width: 100%;
+                left: 0px;
+                top: 0px;
+                z-index: 1;
+                background-color: #000;
+                opacity: 0.5;
+                color: #eee;
+                font-family: sans-serif;
+                font-size: 32px;
+                text-align: center;
+            }
+            .download-ui { margin: 0px 10px; }
+            .remote-file-list {
+                background-color: #fafafa;
+                list-style-type: none;
+                padding: 5px 0px;
+                margin-top: 10px;
+                border-radius: 5px;
+                color: #777;
+            }
+            .remote-file-list li { padding: 2px 10px; }
+            .remote-file-list li a {
+                display: block;
+                width: auto;
+                text-decoration: none;
+                color: #777;
+            }
+            .remote-file-list li a:hover { color: #222; }
+            .remote-file-list li a:active{ color: #777; }
+        </style>
+
+    </head>
+
+    <body>
+        <div class="main-container">
+            <div class="upload-ui">
+                <form id="upload-form" name="upload" class="hidden" method="POST" enctype="multipart/form-data">
+                    <input name="userfile" type="file" multiple required />
+                </form>
+                <ul id="file-list" class="file-list" title="Files To Send">
+                    <li>No files selected.</li>
+                </ul>
+
+                <div id="submit-button" class="button">Send Files</div>
+                <div id="select-button" class="button">Select Files</div>
+
+                <div id="progress-list" class="progress-list" title="Transfers">
+                    <!--
+                    <div class="progress-container">
+                        <div class="progress-bar">
+                        </div>
+                        <div class="progress-message">
+                            <span>Ready</span>
+                        </div>
+                    </div>
+                    -->
+                </div>
+            </div>
+            <div class="download-ui">
+                <ul id="remote-file-list" class="remote-file-list" title="Remote Files">
+                    <!--
+                    <li class="list-item">
+                        <a href="/hub?e=$id" target="_blank">
+                            <span>$id</span> / <span>$ent.name</span>
+                            #if not isNil(ent.tag) and ent.tag.len() > 0:
+                            - <span>$ent.tag</span>
+                            #end if
+                        </a>
+                    </li>
+                    -->
+                </ul>
+            </div>
+            <div id="drop-zone" class="drop-zone">Drop files here.</div>
+        </div>
+
+        <script>
+            (function() {
+                function Transfer(f) {
+                    var thiz = this;
+
+                    this.domElement = document.createElement('div');
+                    this.domElement.classList.add("progress-container");
+                    this.domElement.classList.add("list-item");
+
+                    var progressBar = document.createElement('div');
+                    progressBar.classList.add("progress-bar");
+                    this.domElement.appendChild(progressBar);
+
+                    var progressFileName = document.createElement('div');
+                    progressFileName.classList.add("progress-file-name");
+                    progressFileName.textContent = f.name;
+                    this.domElement.appendChild(progressFileName);
+
+                    var progressMsg = document.createElement('div');
+                    progressMsg.classList.add("progress-message");
+
+                    var messageContent = document.createElement('span');
+                    messageContent.textContent = "Ready";
+                    progressMsg.appendChild(messageContent);
+
+                    this.domElement.appendChild(progressMsg);
+
+                    var opBtns = document.createElement('div');
+                    opBtns.classList.add("transfer-op-bar");
+
+                    var closeBtn = document.createElement('span');
+                    closeBtn.classList.add("transfer-op-btn");
+                    closeBtn.classList.add("transfer-op-close");
+                    closeBtn.textContent = "X";
+                    closeBtn.addEventListener("click", function (ev) {
+                        var confirmed = true;
+                        if (thiz.request.readyState < XMLHttpRequest.DONE) {
+                            confirmed = confirm("Transfer not completed yet. You sure?");
+                        }
+
+                        if (confirmed) {
+                            thiz.abort();
+                            thiz.domElement.remove();
+                        }
+                    }, false);
+                    opBtns.appendChild(closeBtn);
+
+                    this.domElement.appendChild(opBtns);
+
+                    this.domElement.addEventListener("mouseover", function (ev) {
+                        opBtns.style.display = "block";
+                    }, false);
+                    this.domElement.addEventListener("mouseleave", function (ev) {
+                        opBtns.style.display = "none";
+                    }, false);
+
+                    this.progressBar = progressBar;
+                    this.messageContent = messageContent;
+
+                    this.file = f;
+
+                    this.updateProgress = function (percent) {
+                        this.progressBar.style.width = percent + "%";
+                        this.messageContent.textContent = percent + "%"
+                    }
+
+                    this.doUpload = function () {
+                        var formData = new FormData(),
+                            request = new XMLHttpRequest();
+
+                        formData.append("userfile", this.file, this.file.name);
+
+                        request.upload.addEventListener("progress", function(ev) {
+                            var percentComplete = Math.min(ev.loaded / ev.total * 100, 100).toFixed(2);
+                            thiz.updateProgress(percentComplete, true)
+                        }, false);
+
+                        request.upload.addEventListener("error", function(ev) {
+                            console.log(ev);
+                            if (request.statusText !== undefined && request.statusText !== "") {
+                                thiz.showMsg("An error occured. Status: " + request.statusText);
+                            } else {
+                                thiz.showMsg("An error occured.");
+                            }
+                        }, false);
+
+                        request.addEventListener("error", function(ev) {
+                            console.log(ev);
+                            if (request.statusText !== undefined && request.statusText !== "") {
+                                thiz.showMsg("An error occured. Status: " + request.statusText);
+                            } else {
+                                thiz.showMsg("An error occured.");
+                            }
+                        }, false);
+
+                        request.addEventListener("load", function(ev) {
+                            if (request.responseText != "Done.") {
+                                var msg = "An error occured.";
+
+                                if (request.statusText !== undefined && request.statusText !== "") {
+                                    msg += (" Status: " + request.statusText);
+                                }
+                                if (request.responseText !== undefined && request.responseText !== "") {
+                                    msg += ("; Response: " + request.responseText);
+                                }
+
+                                thiz.showMsg(msg);
+                            } else {
+                                thiz.showMsg(request.responseText);
+                            }
+                        }, false);
+
+                        request.open("POST", "hub", true);
+                        request.send(formData);
+
+                        this.request = request
+                    }
+
+                    this.abort = function () {
+                        if (this.request === undefined) { return; }
+                        if (this.request.readyState >= XMLHttpRequest.DONE) { return; }
+
+                        this.request.abort();
+                    }
+
+                    this.showMsg = function (msg) {
+                        this.messageContent.textContent = msg;
+                    }
+
+                    return this;
+                }
+
+                var uploadForm = document.forms.namedItem("upload"),
+                    fileInput = uploadForm.children[0],
+                    submitButton = document.getElementById("submit-button"),
+                    selectButton = document.getElementById("select-button"),
+                    fileList = document.getElementById("file-list"),
+                    selectedFiles = [],
+                    dropZone = document.getElementById("drop-zone");
+
+                function updateSelectedFiles(files) {
+                    if (files && files.length > 0) {
+                        selectedFiles = files;
+
+                        fileList.innerHTML = "";
+                        for (var i = 0; i < files.length; i++) {
+                            var fileLine = document.createElement("li");
+                            fileLine.textContent = files[i].name;
+                            fileLine.classList.add("list-item");
+                            fileList.appendChild(fileLine);
+                        }
+
+                        submitButton.classList.remove("hidden");
+                        selectButton.classList.add("hidden");
+                    } else {
+                        selectedFiles = [];
+
+                        fileList.innerHTML = "";
+                        var fileLine = document.createElement("li");
+                        fileLine.textContent = "No files selected.";
+                        fileList.appendChild(fileLine);
+
+                        submitButton.classList.add("hidden");
+                        selectButton.classList.remove("hidden");
+                    }
+                }
+
+                submitButton.addEventListener("click", function(ev) {
+                    var files = selectedFiles,
+                        transfers = new Array(files.length),
+                        pList = document.getElementById("progress-list");
+
+                    updateSelectedFiles([]);
+
+                    pList.innerHTML;
+                    for (var i = 0; i < files.length; i++) {
+                        transfers[i] = new Transfer(files[i]);
+                        pList.appendChild(transfers[i].domElement);
+                        transfers[i].updateProgress(0);
+                        transfers[i].doUpload();
+                    }
+
+                    ev.preventDefault();
+                }, false);
+
+                fileInput.addEventListener("change", function(ev) {
+                    updateSelectedFiles(ev.target.files);
+                }, false);
+
+                var dummyEv = new Event("change");
+                fileInput.dispatchEvent(dummyEv);
+
+                selectButton.addEventListener("click", function (ev) {
+                    fileInput.click();
+                    ev.preventDefault();
+                }, false);
+                fileList.addEventListener("click", function (ev) {
+                    fileInput.click();
+                    ev.preventDefault();
+                }, false);
+
+                document.documentElement.addEventListener("dragenter", function (ev) {
+                    ev.stopPropagation();
+                    ev.preventDefault();
+
+                    dropZone.style.display = "block";
+                }, false)
+                dropZone.addEventListener("dragenter", function (ev) {
+                    ev.stopPropagation();
+                    ev.preventDefault();
+                }, false)
+                dropZone.addEventListener("dragleave", function (ev) {
+                    ev.stopPropagation();
+                    ev.preventDefault();
+
+                    dropZone.style.display = "none";
+                }, false)
+                dropZone.addEventListener("dragover", function (ev) {
+                    ev.stopPropagation();
+                    ev.preventDefault();
+                }, false)
+                dropZone.addEventListener("drop", function (ev) {
+                    ev.stopPropagation();
+                    ev.preventDefault();
+
+                    updateSelectedFiles(ev.dataTransfer.files);
+                    dropZone.style.display = "none";
+                }, false)
+
+                var remoteFileList = document.getElementById("remote-file-list");
+                function refreshRemoteFileList() {
+                    var request = new XMLHttpRequest();
+                    request.timeout = 2000;
+
+                    request.addEventListener("load", function (ev) {
+                        var retObj;
+                        try {
+                            retObj = JSON.parse(request.responseText);
+                        } catch (e) {
+                            console.log(e);
+                            setTimeout(refreshRemoteFileList, 2000);
+                        }
+
+                        if (retObj.fileList !== undefined) {
+                            var objList = retObj.fileList;
+
+                            remoteFileList.innerHTML = "";
+
+                            for (var i = 0; i < objList.length; i++) {
+                                var li = document.createElement("li");
+                                li.classList.add("list-item");
+
+                                if (objList[i].tag !== undefined) {
+                                    li.innerHTML =
+                                        "<a href=\"" + objList[i].url + "\" target=\"_blank\">" +
+                                            "<span>" + objList[i].id + "</span> / <span>" + objList[i].name + "</span>" +
+                                            " - <span>" + objList[i].tag + "</span>" +
+                                        "</a>"
+                                } else {
+                                    li.innerHTML =
+                                        "<a href=\"" + objList[i].url + "\" target=\"_blank\">" +
+                                            "<span>" + objList[i].id + "</span> / <span>" + objList[i].name + "</span>"
+                                        "</a>"
+                                }
+
+                                remoteFileList.appendChild(li);
+                            }
+                        }
+
+                        setTimeout(refreshRemoteFileList, 2000);
+                    }, false);
+
+                    function onRequestError(ev) {
+                        console.log(ev);
+                        setTimeout(refreshRemoteFileList, 2000);
+                    }
+                    request.addEventListener("error", onRequestError, false);
+                    request.addEventListener("timeout", onRequestError, false);
+
+                    request.open("GET", "list", true);
+                    request.send();
+                }
+
+                refreshRemoteFileList();
+            })();
+        </script>
+    </body>
+</html>
