@@ -203,20 +203,18 @@ class RecvResource(http.UrlResource):
         yield from resp.send()
 
         total_len = 0
-        file_content = yield from entry.reader.read(8192)
-        while len(file_content) > 0:
-            total_len += len(file_content)
-
-            try:
-                yield from resp.send_body(file_content)
-            except Exception as exc:
-                logger('filehub.RecvResource').debug(traceback.format_exc())
-                logger('filehub.RecvResource').debug('Transfer failed: %r', exc)
-                entry.done.set_exception(exc)
-                resp.connection.close()
-                return
-
+        try:
             file_content = yield from entry.reader.read(8192)
+            while len(file_content) > 0:
+                total_len += len(file_content)
+                yield from resp.send_body(file_content)
+                file_content = yield from entry.reader.read(8192)
+        except Exception as exc:
+            logger('filehub.RecvResource').debug(traceback.format_exc())
+            logger('filehub.RecvResource').debug('Transfer failed: %r', exc)
+            entry.done.set_exception(exc)
+            resp.connection.close()
+            return
 
         logger('filehub.RecvResource').debug(
             'entry_idx = %r, transfer completed, '
