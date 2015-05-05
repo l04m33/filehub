@@ -4,6 +4,7 @@ import argparse
 import json
 import urllib.parse as urlparse
 import os
+import traceback
 from pyx import http
 from pyx import io
 from pyx.log import logger
@@ -76,6 +77,38 @@ class HubResource(http.UrlResource):
 
         return int_e
 
+    def _post_part_cb(self, headers, breader, lreader, boundary, resp):
+        disp = http.get_first_kv(headers, 'Content-Disposition')
+        disp_list = disp.split(';')
+
+        file_name = 'Anonymous File'
+        field_name = None
+        for d in disp_list:
+            sd = d.strip()
+            if sd.startswith('name='):
+                field_name = sd[5:]
+            elif sd.startswith('filename='):
+                file_name = sd[9:]
+                if len(file_name) >= 2 \
+                        and file_name[0] == '"' \
+                        and file_name[-1] == '"':
+                    file_name = file_name[1:-1]
+                    if not file_name:
+                        file_name = 'Anonymous File'
+
+        if field_name == '"userfile"':
+            part_ct = http.get_first_kv(headers, 'Content-Type')
+            file_len = \
+                lreader._remaining - \
+                    (len(boundary) + len(b'--') * 2 + len(b'\r\n') * 2)
+            new_entry = \
+                TransportEntry(file_name, part_ct, file_len, breader)
+            new_idx = \
+                resp.connection.writer.get_extra_info('socket').fileno()
+
+            shelf[new_idx] = new_entry
+            yield from new_entry.done
+
     @http.methods(['GET'])
     @asyncio.coroutine
     def handle_request(self, req):
@@ -113,76 +146,19 @@ class HubResource(http.UrlResource):
 
         lreader = \
             io.LengthReader(io.BufferedReader(resp.connection.reader), clen)
-        breader = io.BoundaryReader(lreader, boundary)
-        # The BoundaryReader expects a new line before the boundary string,
-        # We make sure the new line exists
-        breader.put(b'\r\n')
-        # Clean up garbage before the first boundary
-        _dummy_data = yield from breader.read()
-        logger('HubResource').debug('_dummy_data = %r', _dummy_data)
-        del _dummy_data
 
-        # TODO: Refactor the code below into a generic multipart parser
+        @asyncio.coroutine
+        def part_cb(h, br):
+            yield from self._post_part_cb(h, br, lreader, boundary, resp)
 
-        breader = io.BoundaryReader(lreader, boundary)
-        line = yield from breader.readline()
-
-        while line:
-
-            file_name = 'Anonymous File'
-            field_name = None
-            part_ct = None
-
-            while line.strip():
-                header = http.parse_http_header(line)
-
-                if header.key.upper() == 'CONTENT-DISPOSITION':
-                    disp_list = header.value.split(';')
-                    if not disp_list:
-                        raise http.HttpError(400, 'No disposition info')
-                    if disp_list[0].strip() != 'form-data':
-                        raise http.HttpError(400, 'Bad disposition info')
-
-                    for d in disp_list:
-                        sd = d.strip()
-                        if sd.startswith('name='):
-                            field_name = sd[5:]
-                        elif sd.startswith('filename='):
-                            file_name = sd[9:]
-                            if len(file_name) >= 2 \
-                                    and file_name[0] == '"' \
-                                    and file_name[-1] == '"':
-                                file_name = file_name[1:-1]
-                                if not file_name:
-                                    file_name = 'Anonymous File'
-                elif header.key.upper() == 'CONTENT-TYPE':
-                    part_ct = header.value
-
-                line = yield from breader.readline()
-
-            if field_name == '"userfile"':
-                file_len = \
-                    lreader._remaining - \
-                        (len(boundary) + len(b'--') * 2 + len(b'\r\n') * 2)
-                new_entry = \
-                    TransportEntry(file_name, part_ct, file_len, breader)
-                new_idx = \
-                    resp.connection.writer.get_extra_info('socket').fileno()
-
-                shelf[new_idx] = new_entry
-                try:
-                    yield from new_entry.done
-                except Exception as exc:
-                    logger('HubResource').debug(
-                        'Transfer failed: %r, closing sender connection', exc)
-                    resp.connection.close()
-                    return
-            else:
-                # Not the field we want, clear it
-                yield from breader.read()
-
-            breader = io.BoundaryReader(lreader, boundary)
-            line = yield from breader.readline()
+        try:
+            yield from http.parse_multipart_formdata(lreader, boundary, part_cb)
+        except Exception as exc:
+            logger('HubResource').debug(traceback.format_exc())
+            logger('HubResource').debug(
+                'Transfer failed: %r, closing sender connection', exc)
+            resp.connection.close()
+            return
 
         yield from resp.send_body(b'Done.')
 
@@ -234,6 +210,7 @@ class RecvResource(http.UrlResource):
             try:
                 yield from resp.send_body(file_content)
             except Exception as exc:
+                logger('RecvResource').debug(traceback.format_exc())
                 logger('RecvResource').debug('Transfer failed: %r', exc)
                 entry.done.set_exception(exc)
                 resp.connection.close()
