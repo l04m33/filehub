@@ -136,8 +136,8 @@ class HubResource(http.UrlResource):
         if not boundary or clen < len(boundary):
             raise http.HttpError(400, 'Bad Content-Length/Content-Type')
 
-        logger('HubResource').debug('content-length = %r, boundary = %r',
-                                    clen, boundary)
+        logger('filehub.HubResource').debug(
+            'content-length = %r, boundary = %r', clen, boundary)
 
         resp = req.respond(200)
         resp.headers.append(http.HttpHeader('Content-Length', 5))
@@ -154,8 +154,8 @@ class HubResource(http.UrlResource):
         try:
             yield from http.parse_multipart_formdata(lreader, boundary, part_cb)
         except Exception as exc:
-            logger('HubResource').debug(traceback.format_exc())
-            logger('HubResource').debug(
+            logger('filehub.HubResource').debug(traceback.format_exc())
+            logger('filehub.HubResource').debug(
                 'Transfer failed: %r, closing sender connection', exc)
             resp.connection.close()
             return
@@ -210,15 +210,15 @@ class RecvResource(http.UrlResource):
             try:
                 yield from resp.send_body(file_content)
             except Exception as exc:
-                logger('RecvResource').debug(traceback.format_exc())
-                logger('RecvResource').debug('Transfer failed: %r', exc)
+                logger('filehub.RecvResource').debug(traceback.format_exc())
+                logger('filehub.RecvResource').debug('Transfer failed: %r', exc)
                 entry.done.set_exception(exc)
                 resp.connection.close()
                 return
 
             file_content = yield from entry.reader.read(8192)
 
-        logger('RecvResource').debug(
+        logger('filehub.RecvResource').debug(
             'entry_idx = %r, transfer completed, '
             'total_len = %r, content-length = %r',
             self._entry_idx, total_len, entry.content_length)
@@ -248,7 +248,7 @@ class ListResource(http.UrlResource):
             })
         jstr = json.dumps({'fileList': jobj_list})
 
-        logger('ListResource').debug('jstr = %r', jstr)
+        logger('filehub.ListResource').debug('jstr = %r', jstr)
 
         resp = req.respond(200)
         resp.headers.append(http.HttpHeader('Content-Length', len(jstr)))
@@ -309,9 +309,11 @@ def main():
     server = loop.run_until_complete(starter)
 
     if args.bind == '':
-        logger().info('Server serving at <all interfaces>:{}'.format(args.port))
+        logger('filehub').info(
+            'Server serving at <all interfaces>:{}'.format(args.port))
     else:
-        logger().info('Server serving at {}:{}'.format(args.bind, args.port))
+        logger('filehub').info(
+            'Server serving at {}:{}'.format(args.bind, args.port))
 
     try:
         loop.run_forever()
