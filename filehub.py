@@ -227,10 +227,10 @@ class RecvResource(http.UrlResource):
             # The transfer was canceled on the sender side,
             # we tell the receiver then.
             resp.connection.close()
-            entry.done.set_exception(TransferIncompleteError('Sender disconnected'))
+            entry.done.set_exception(
+                TransferIncompleteError('Sender disconnected'))
         else:
             entry.done.set_result(None)
-
 
 
 class ListResource(http.UrlResource):
