@@ -5,8 +5,7 @@ import json
 import urllib.parse as urlparse
 import os
 import traceback
-from pyx import http
-from pyx import io
+import pyx
 from pyx.log import logger
 
 
@@ -29,7 +28,7 @@ class TransportEntry:
         self.done = asyncio.Future(loop=self.loop)
 
 
-class RootResource(http.UrlResource):
+class RootResource(pyx.UrlResource):
     def __init__(self, index_page):
         super().__init__()
         self._page_content = index_page
@@ -40,48 +39,48 @@ class RootResource(http.UrlResource):
         elif key == 'list':
             return ListResource()
 
-        raise http.HttpError(404, '{} not found'.format(repr(key)))
+        raise pyx.HttpError(404, '{} not found'.format(repr(key)))
 
-    @http.methods(['GET'])
+    @pyx.methods(['GET'])
     @asyncio.coroutine
     def handle_request(self, req):
         resp = req.respond(200)
         resp.headers.append(
-            http.HttpHeader('Content-Length', len(self._page_content)))
+            pyx.HttpHeader('Content-Length', len(self._page_content)))
         resp.headers.append(
-            http.HttpHeader('Content-Type', 'text/html'))
+            pyx.HttpHeader('Content-Type', 'text/html'))
         yield from resp.send()
         yield from resp.send_body(self._page_content)
 
 
-class HubResource(http.UrlResource):
+class HubResource(pyx.UrlResource):
     def get_child(self, key):
         try:
             int_key = int(key, 10)
         except ValueError:
-            raise http.HttpError(404, '{} not found'.format(repr(key)))
+            raise pyx.HttpError(404, '{} not found'.format(repr(key)))
         return RecvResource(int_key)
 
     def _get_shelf_entry_idx(self, req):
         if not req.query:
-            raise http.HttpError(400, 'No query string')
+            raise pyx.HttpError(400, 'No query string')
 
         q = urlparse.parse_qs(req.query)
         if 'e' not in q:
-            raise http.HttpError(400, 'Parameter `e` is required')
+            raise pyx.HttpError(400, 'Parameter `e` is required')
 
         try:
             int_e = int(q['e'][0], 10)
         except ValueError:
-            raise http.HttpError(400, 'Parameter `e` should be an integer')
+            raise pyx.HttpError(400, 'Parameter `e` should be an integer')
 
         if int_e not in shelf:
-            raise http.HttpError(404, 'Entry {} not found'.format(int_e))
+            raise pyx.HttpError(404, 'Entry {} not found'.format(int_e))
 
         return int_e
 
     def _post_part_cb(self, headers, breader, lreader, boundary, resp):
-        disp = http.get_first_kv(headers, 'Content-Disposition')
+        disp = pyx.get_first_kv(headers, 'Content-Disposition')
         disp_list = disp.split(';')
 
         file_name = 'Anonymous File'
@@ -100,7 +99,7 @@ class HubResource(http.UrlResource):
                         file_name = 'Anonymous File'
 
         if field_name == '"userfile"':
-            part_ct = http.get_first_kv(headers, 'Content-Type')
+            part_ct = pyx.get_first_kv(headers, 'Content-Type')
             file_len = \
                 lreader._remaining - \
                     (len(boundary) + len(b'--') * 2 + len(b'\r\n') * 2)
@@ -112,7 +111,7 @@ class HubResource(http.UrlResource):
             shelf[new_idx] = new_entry
             yield from new_entry.done
 
-    @http.methods(['GET'])
+    @pyx.methods(['GET'])
     @asyncio.coroutine
     def handle_request(self, req):
         entry_idx = self._get_shelf_entry_idx(req)
@@ -120,9 +119,9 @@ class HubResource(http.UrlResource):
 
         resp = req.respond(303)
         resp.headers.append(
-            http.HttpHeader('Location', 'hub/{}/{}'.format(
+            pyx.HttpHeader('Location', 'hub/{}/{}'.format(
                                 entry_idx, urlparse.quote(entry.name))))
-        resp.headers.append(http.HttpHeader('Content-Length', 0))
+        resp.headers.append(pyx.HttpHeader('Content-Length', 0))
         yield from resp.send()
 
     @handle_request.methods(['POST'])
@@ -137,25 +136,25 @@ class HubResource(http.UrlResource):
         boundary = self._parse_boundary(ct).encode()
 
         if not boundary or clen < len(boundary):
-            raise http.HttpError(400, 'Bad Content-Length/Content-Type')
+            raise pyx.HttpError(400, 'Bad Content-Length/Content-Type')
 
         logger('filehub.HubResource').debug(
             'content-length = %r, boundary = %r', clen, boundary)
 
         resp = req.respond(200)
-        resp.headers.append(http.HttpHeader('Content-Length', 5))
-        resp.headers.append(http.HttpHeader('Content-Type', 'text/plain'))
+        resp.headers.append(pyx.HttpHeader('Content-Length', 5))
+        resp.headers.append(pyx.HttpHeader('Content-Type', 'text/plain'))
         yield from resp.send()
 
         lreader = \
-            io.LengthReader(io.BufferedReader(resp.connection.reader), clen)
+            pyx.LengthReader(pyx.BufferedReader(resp.connection.reader), clen)
 
         @asyncio.coroutine
         def part_cb(h, br):
             yield from self._post_part_cb(h, br, lreader, boundary, resp)
 
         try:
-            yield from http.parse_multipart_formdata(lreader, boundary, part_cb)
+            yield from pyx.parse_multipart_formdata(lreader, boundary, part_cb)
         except Exception as exc:
             logger('filehub.HubResource').debug(traceback.format_exc())
             logger('filehub.HubResource').debug(
@@ -184,25 +183,25 @@ class HubResource(http.UrlResource):
         return content_type[bd_idx:].strip()
 
 
-class RecvResource(http.UrlResource):
+class RecvResource(pyx.UrlResource):
     def __init__(self, entry_idx):
         if entry_idx not in shelf:
-            raise http.HttpError(404, 'Entry {} not found'.format(entry_idx))
+            raise pyx.HttpError(404, 'Entry {} not found'.format(entry_idx))
         self._entry_idx = entry_idx
 
     def get_child(self, key):
         return self
 
-    @http.methods(['GET'])
+    @pyx.methods(['GET'])
     @asyncio.coroutine
     def handle_request(self, req):
         entry = shelf[self._entry_idx]
         del shelf[self._entry_idx]
 
         resp = req.respond(200)
-        resp.headers.append(http.HttpHeader('Content-Length', entry.content_length))
+        resp.headers.append(pyx.HttpHeader('Content-Length', entry.content_length))
         if entry.content_type is not None:
-            resp.headers.append(http.HttpHeader('Content-Type', entry.content_type))
+            resp.headers.append(pyx.HttpHeader('Content-Type', entry.content_type))
         yield from resp.send()
 
         total_len = 0
@@ -234,8 +233,8 @@ class RecvResource(http.UrlResource):
             entry.done.set_result(None)
 
 
-class ListResource(http.UrlResource):
-    @http.methods(['GET'])
+class ListResource(pyx.UrlResource):
+    @pyx.methods(['GET'])
     @asyncio.coroutine
     def handle_request(self, req):
         jobj_list = []
@@ -252,8 +251,8 @@ class ListResource(http.UrlResource):
         logger('filehub.ListResource').debug('jstr = %r', jstr)
 
         resp = req.respond(200)
-        resp.headers.append(http.HttpHeader('Content-Length', len(jstr)))
-        resp.headers.append(http.HttpHeader('Content-Type', 'application/json'))
+        resp.headers.append(pyx.HttpHeader('Content-Length', len(jstr)))
+        resp.headers.append(pyx.HttpHeader('Content-Type', 'application/json'))
         yield from resp.send()
         yield from resp.send_body(jstr)
 
@@ -300,8 +299,8 @@ def main():
     def root_factory(req):
         return RootResource(ui_page)
 
-    req_cb = http.HttpRequestCB(root_factory)
-    conn_cb = http.HttpConnectionCB(req_cb)
+    req_cb = pyx.HttpRequestCB(root_factory)
+    conn_cb = pyx.HttpConnectionCB(req_cb)
 
     starter = asyncio.start_server(conn_cb, args.bind, args.port,
                                    backlog=args.backlog,
