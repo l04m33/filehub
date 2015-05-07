@@ -28,7 +28,7 @@ def get_version(fname):
 setup(
     name=PACKAGE_NAME,
     packages=[PACKAGE_NAME],
-    version=get_version('{}.py'.format(PACKAGE_NAME)),
+    version=get_version('{}/__init__.py'.format(PACKAGE_NAME)),
     description='A relay server for sharing files via HTTP',
     long_description=load_description('README.rst'),
     classifiers=[
