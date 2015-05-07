@@ -38,7 +38,7 @@ setup(
     author_email='l04m33@gmail.com',
     license='MIT',
     zip_safe=False,
-    install_requires=['pyx'],
+    install_requires=['pyxserver'],
     entry_points="""
     [console_scripts]
     {0} = {0}:main
