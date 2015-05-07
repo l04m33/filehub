@@ -27,16 +27,17 @@ def get_version(fname):
 
 setup(
     name=PACKAGE_NAME,
+    packages=[PACKAGE_NAME],
     version=get_version('{}.py'.format(PACKAGE_NAME)),
     description='A relay server for sharing files via HTTP',
-    long_description=load_description('readme.rst'),
+    long_description=load_description('README.rst'),
     classifiers=[
         'License :: OSI Approved :: MIT License',
     ],
-    keywords='http web server',
     author='Kay Zheng',
     author_email='l04m33@gmail.com',
-    license='MIT',
+    url='https://github.com/l04m33/filehub',
+    license='http://l04m33.mit-license.org/',
     zip_safe=False,
     install_requires=['pyxserver'],
     entry_points="""
