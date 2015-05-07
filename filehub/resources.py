@@ -92,7 +92,7 @@ class HubResource(pyx.UrlResource):
                     if not file_name:
                         file_name = 'Anonymous File'
 
-        if field_name == '"userfile"':
+        if field_name == '"f"':
             part_ct = pyx.get_first_kv(headers, 'Content-Type')
             file_len = \
                 lreader._remaining - \

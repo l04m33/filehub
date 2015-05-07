@@ -131,7 +131,7 @@
         <div class="main-container">
             <div class="upload-ui">
                 <form id="upload-form" name="upload" class="hidden" method="POST" enctype="multipart/form-data">
-                    <input name="userfile" type="file" multiple required />
+                    <input name="f" type="file" multiple required />
                 </form>
                 <ul id="file-list" class="file-list" title="Files To Send">
                     <li>No files selected.</li>
@@ -239,7 +239,7 @@
                         var formData = new FormData(),
                             request = new XMLHttpRequest();
 
-                        formData.append("userfile", this.file, this.file.name);
+                        formData.append("f", this.file, this.file.name);
 
                         request.upload.addEventListener("progress", function(ev) {
                             var percentComplete = Math.min(ev.loaded / ev.total * 100, 100).toFixed(2);
