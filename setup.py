@@ -34,6 +34,7 @@ setup(
     long_description=load_description('README.rst'),
     classifiers=[
         'License :: OSI Approved :: MIT License',
+        'Programming Language :: Python :: 3.4',
     ],
     author='Kay Zheng',
     author_email='l04m33@gmail.com',
