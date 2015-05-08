@@ -1,13 +1,16 @@
 import asyncio
 import logging
 import argparse
-import os
+import pkg_resources
 import pyx
 from pyx.log import logger
 from .resources import RootResource
 
 
-__version__ = '0.1.0'
+__all__ = ['main', '__version__']
+
+
+__version__ = '0.1.1'
 
 
 def parse_arguments():
@@ -43,11 +46,9 @@ def main():
 
     loop = asyncio.get_event_loop()
 
-    cur_file = os.path.abspath(__file__)
-    home_dir, _filename = os.path.split(cur_file)
-    ui_file = os.path.join(home_dir, 'ui.html')
-    with open(ui_file, 'rb') as f:
-        ui_page = f.read()
+    pkg_provider = pkg_resources.get_provider(__package__)
+    res_mngr = pkg_resources.ResourceManager()
+    ui_page = pkg_provider.get_resource_string(res_mngr, 'ui.html')
 
     def root_factory(req):
         return RootResource(ui_page)

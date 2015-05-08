@@ -6,6 +6,11 @@ import pyx
 from pyx.log import logger
 
 
+__all__ = ['TransferIncompleteError', 'TransportEntry',
+           'RootResource', 'HubResource', 'RecvResource', 'ListResource',
+           'shelf']
+
+
 shelf = {}
 
 
