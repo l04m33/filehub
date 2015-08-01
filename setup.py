@@ -41,7 +41,7 @@ setup(
     url='https://github.com/l04m33/filehub',
     license='http://l04m33.mit-license.org/',
     zip_safe=False,
-    install_requires=['pyxserver'],
+    install_requires=['pyxserver >= 0.1.4'],
     entry_points="""
     [console_scripts]
     {0} = {0}:main

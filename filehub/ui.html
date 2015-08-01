@@ -265,7 +265,9 @@
                         }, false);
 
                         request.addEventListener("load", function(ev) {
-                            if (request.responseText != "Done.") {
+                            var ret_re = /^hub\?e=([0-9]+)$/m ;
+
+                            if (!ret_re.test(request.responseText)) {
                                 var msg = "An error occured.";
 
                                 if (request.statusText !== undefined && request.statusText !== "") {
@@ -277,7 +279,7 @@
 
                                 thiz.showMsg(msg);
                             } else {
-                                thiz.showMsg(request.responseText);
+                                thiz.showMsg('Done.');
                             }
                         }, false);
 

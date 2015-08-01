@@ -108,6 +108,10 @@ class HubResource(pyx.UrlResource):
                 resp.connection.writer.get_extra_info('socket').fileno()
 
             shelf[new_idx] = new_entry
+
+            cur_url = HubResource.make_entry_url(new_idx) + '\r\n'
+            yield from resp.send_body(cur_url)
+
             yield from new_entry.done
 
     @pyx.methods(['GET'])
@@ -141,9 +145,12 @@ class HubResource(pyx.UrlResource):
             'content-length = %r, boundary = %r', clen, boundary)
 
         resp = req.respond(200)
-        resp.headers.append(pyx.HttpHeader('Content-Length', 5))
+        resp.headers.append(pyx.HttpHeader('Transfer-Encoding', 'chunked'))
         resp.headers.append(pyx.HttpHeader('Content-Type', 'text/plain'))
         yield from resp.send()
+
+        orig_writer = resp.connection.writer
+        resp.connection.writer = pyx.ChunkedWriter(orig_writer)
 
         lreader = \
             pyx.LengthReader(pyx.BufferedReader(resp.connection.reader), clen)
@@ -161,7 +168,8 @@ class HubResource(pyx.UrlResource):
             resp.connection.close()
             return
 
-        yield from resp.send_body(b'Done.')
+        yield from resp.send_body(b'')
+        resp.connection.writer = orig_writer
 
     def _parse_boundary(self, content_type):
         ct_prefix = "multipart/form-data;"
@@ -180,6 +188,10 @@ class HubResource(pyx.UrlResource):
 
         bd_idx += len(bd_prefix)
         return content_type[bd_idx:].strip()
+
+    @classmethod
+    def make_entry_url(cls, entry_idx):
+        return 'hub?e={}'.format(entry_idx)
 
 
 class RecvResource(pyx.UrlResource):
@@ -243,7 +255,7 @@ class ListResource(pyx.UrlResource):
                 'name': entry.name,
                 'size': entry.content_length,
                 'type': entry.content_type,
-                'url': 'hub?e={}'.format(idx),
+                'url': HubResource.make_entry_url(idx),
             })
         jstr = json.dumps({'fileList': jobj_list})
 
