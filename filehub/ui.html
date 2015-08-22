@@ -423,11 +423,11 @@
                                 var li = document.createElement("li");
                                 li.classList.add("list-item");
 
-                                if (objList[i].tag !== undefined) {
+                                if (objList[i].comments !== undefined && objList[i].comments.length > 0) {
                                     li.innerHTML =
                                         "<a href=\"" + objList[i].url + "\" target=\"_blank\">" +
                                             "<span>" + objList[i].id + "</span> / <span>" + objList[i].name + "</span>" +
-                                            " - <span>" + objList[i].tag + "</span>" +
+                                            " - <span>" + objList[i].comments + "</span>" +
                                         "</a>"
                                 } else {
                                     li.innerHTML =
