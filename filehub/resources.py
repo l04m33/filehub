@@ -18,10 +18,12 @@ class TransferIncompleteError(Exception): pass
 
 
 class TransportEntry:
-    def __init__(self, name, content_type, content_length, reader, loop=None):
+    def __init__(self, name, content_type,
+                 content_length, comments, reader, loop=None):
         self.name = name
         self.content_type = content_type
         self.content_length = content_length
+        self.comments = comments
         self.reader = reader
         self.loop = loop or asyncio.get_event_loop()
         self.done = asyncio.Future(loop=self.loop)
@@ -78,7 +80,8 @@ class HubResource(pyx.UrlResource):
 
         return int_e
 
-    def _post_part_cb(self, headers, breader, lreader, boundary, resp):
+    def _post_part_cb(self, comments, headers,
+                      breader, lreader, boundary, resp):
         disp = pyx.get_first_kv(headers, 'Content-Disposition')
         disp_list = disp.split(';')
 
@@ -103,16 +106,23 @@ class HubResource(pyx.UrlResource):
                 lreader._remaining - \
                     (len(boundary) + len(b'--') * 2 + len(b'\r\n') * 2)
             new_entry = \
-                TransportEntry(file_name, part_ct, file_len, breader)
+                TransportEntry(file_name, part_ct,
+                               file_len, comments.copy(), breader)
+
+            comments.clear()
+
             new_idx = \
                 resp.connection.writer.get_extra_info('socket').fileno()
-
             shelf[new_idx] = new_entry
 
             cur_url = HubResource.make_entry_url(new_idx) + '\r\n'
             yield from resp.send_body(cur_url)
 
             yield from new_entry.done
+
+        elif field_name == '"c"':
+            comment = yield from breader.read()
+            comments.append(comment.decode())
 
     @pyx.methods(['GET'])
     @asyncio.coroutine
@@ -155,9 +165,11 @@ class HubResource(pyx.UrlResource):
         lreader = \
             pyx.LengthReader(pyx.BufferedReader(resp.connection.reader), clen)
 
+        comments = []
         @asyncio.coroutine
         def part_cb(h, br):
-            yield from self._post_part_cb(h, br, lreader, boundary, resp)
+            yield from self._post_part_cb(
+                comments, h, br, lreader, boundary, resp)
 
         try:
             yield from pyx.parse_multipart_formdata(lreader, boundary, part_cb)
@@ -256,6 +268,7 @@ class ListResource(pyx.UrlResource):
                 'size': entry.content_length,
                 'type': entry.content_type,
                 'url': HubResource.make_entry_url(idx),
+                'comments': entry.comments,
             })
         jstr = json.dumps({'fileList': jobj_list})
 
