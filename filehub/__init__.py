@@ -10,7 +10,7 @@ from .resources import RootResource
 __all__ = ['main', '__version__']
 
 
-__version__ = '0.1.2'
+__version__ = '0.1.3'
 
 
 def parse_arguments():

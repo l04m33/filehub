@@ -122,7 +122,8 @@ class HubResource(pyx.UrlResource):
 
         elif field_name == '"c"':
             comment = yield from breader.read()
-            comments.append(comment.decode())
+            if len(comment) > 0:
+                comments.append(comment.decode())
 
     @pyx.methods(['GET'])
     @asyncio.coroutine

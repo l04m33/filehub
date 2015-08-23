@@ -76,6 +76,15 @@
             .file-list li { padding: 2px 10px; }
             .list-item { background: none; }
             .list-item:nth-child(2n+1) { background-color: #fff; }
+            .comment-input {
+                width: 100%;
+                padding: 2px 5px;
+                border-style: none;
+                border-radius: 5px;
+                display: none;
+                background-color: #f4f7ff;
+                color: #777;
+            }
             .button {
                 cursor: pointer;
                 background-color: #f4f7ff;
@@ -239,6 +248,9 @@
                         var formData = new FormData(),
                             request = new XMLHttpRequest();
 
+                        if (this.file.comment !== undefined) {
+                            formData.append("c", this.file.comment);
+                        }
                         formData.append("f", this.file, this.file.name);
 
                         request.upload.addEventListener("progress", function(ev) {
@@ -303,11 +315,54 @@
                     return this;
                 }
 
+                function CommentInput() {
+                    this.domElement = document.createElement("input");
+                    this.domElement.id = "comment-input";
+                    this.domElement.classList.add("comment-input");
+                    this.domElement.placeholder = "Comment";
+
+                    this.domElement.addEventListener("keypress", function (ev) {
+                        if (ev.keyCode == 13) { // enter
+                            this.parentElement.upFile.comment = this.value;
+                            this.parentElement.removeChild(this);
+                            ev.preventDefault();
+                            ev.stopPropagation();
+                        }
+                        if (ev.keyCode == 27) { // escape
+                            this.parentElement.removeChild(this);
+                            ev.preventDefault();
+                            ev.stopPropagation();
+                        }
+                    });
+
+                    this.domElement.addEventListener("click", function (ev) {
+                        ev.stopPropagation();
+                    });
+
+                    this.toggle = function (domElem) {
+                        if (this.domElement.parentElement == domElem) {
+                            domElem.removeChild(this.domElement);
+                        } else {
+                            this.domElement.style.display = "block";
+                            if (domElem.upFile.comment === undefined) {
+                                this.domElement.value = "";
+                            } else {
+                                this.domElement.value = domElem.upFile.comment;
+                            }
+                            domElem.appendChild(this.domElement);
+                            this.domElement.focus();
+                        }
+                    };
+
+                    return this;
+                }
+
                 var uploadForm = document.forms.namedItem("upload"),
                     fileInput = uploadForm.children[0],
                     submitButton = document.getElementById("submit-button"),
                     selectButton = document.getElementById("select-button"),
                     fileList = document.getElementById("file-list"),
+                    commentInput = new CommentInput();
                     selectedFiles = [],
                     dropZone = document.getElementById("drop-zone");
 
@@ -317,9 +372,16 @@
 
                         fileList.innerHTML = "";
                         for (var i = 0; i < files.length; i++) {
-                            var fileLine = document.createElement("li");
-                            fileLine.textContent = files[i].name;
+                            var fileLine = document.createElement("li"),
+                                nameSpan = document.createElement("span");
+                            nameSpan.textContent = files[i].name;
+                            fileLine.upFile = files[i];
+                            fileLine.appendChild(nameSpan);
                             fileLine.classList.add("list-item");
+                            fileLine.addEventListener("click", function (ev) {
+                                commentInput.toggle(this);
+                                ev.stopPropagation();
+                            }, false);
                             fileList.appendChild(fileLine);
                         }
 
