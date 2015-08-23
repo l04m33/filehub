@@ -321,7 +321,7 @@
                     this.domElement.classList.add("comment-input");
                     this.domElement.placeholder = "Comment";
 
-                    this.domElement.addEventListener("keypress", function (ev) {
+                    this.domElement.addEventListener("keyup", function (ev) {
                         if (ev.keyCode == 13) { // enter
                             this.parentElement.upFile.comment = this.value;
                             this.parentElement.removeChild(this);
